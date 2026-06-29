@@ -1225,6 +1225,33 @@ def check_tx_spike(product_id: str, df: pd.DataFrame, change_24hr: float, price:
 # TP/SL POSITION MANAGEMENT
 # ─────────────────────────────────────────────
 
+def _hof_time_stop(product_id: str, state: dict, price: float):
+    """Insert a TIME_STOP win into Hall of Fame. Shared by 2hr and 6hr exit paths."""
+    try:
+        l2p  = float(state.get("l2_price") or 0)
+        peak = float(state.get("peak_price") or 0)
+        gain = round((price - l2p) / l2p * 100, 1) if l2p > 0 else 0
+        if l2p > 0 and gain >= 5.0:
+            supabase.table("hall_of_fame").insert({
+                "product_id":  product_id,
+                "l2_type":     str(state.get("l2_type") or "volume"),
+                "l2_fired_at": str(state.get("l2_fired_at") or ""),
+                "l2_price":    l2p,
+                "peak_price":  peak,
+                "peak_gain":   round((peak - l2p) / l2p * 100, 1) if l2p > 0 else 0,
+                "tp1_hit":     bool(state.get("tp1_hit") or False),
+                "tp2_hit":     False,
+                "accel_count": int(state.get("accel_count") or 0),
+                "rsi":         state.get("rsi"),
+                "rs_vs_btc":   state.get("rs_vs_btc"),
+                "exit_type":   "TIME_STOP",
+                "exit_gain":   gain,
+            }).execute()
+            log.info(f"🏆 Hall of Fame: {product_id} TIME_STOP +{gain}%")
+    except Exception as e:
+        log.warning(f"Hall of Fame insert failed ({product_id}): {e}")
+
+
 def check_tp_sl(product_id: str, price: float, state: dict,
                 df: pd.DataFrame | None = None):
     """
@@ -1290,30 +1317,7 @@ def check_tp_sl(product_id: str, price: float, state: dict,
                     format_weak_signal_alert(product_id, l2_price, price,
                                              gain_pct, hours_elapsed))
                 log.info(f"WEAK SIGNAL EXIT: {product_id} {gain_pct:+.1f}% after {hours_elapsed:.1f}hr")
-                # ── Hall of Fame insert — positive time stop ─────────────────────────
-                try:
-                    l2p   = float(state.get("l2_price") or 0)
-                    peak  = float(state.get("peak_price") or 0)
-                    gain  = round((price - l2p) / l2p * 100, 1) if l2p > 0 else 0
-                    if l2p > 0 and gain >= 5.0:
-                        supabase.table("hall_of_fame").insert({
-                            "product_id":   product_id,
-                            "l2_type":      str(state.get("l2_type") or "volume"),
-                            "l2_fired_at":  str(state.get("l2_fired_at") or ""),
-                            "l2_price":     l2p,
-                            "peak_price":   peak,
-                            "peak_gain":    round((peak - l2p) / l2p * 100, 1) if l2p > 0 else 0,
-                            "tp1_hit":      bool(state.get("tp1_hit") or False),
-                            "tp2_hit":      False,
-                            "accel_count":  int(state.get("accel_count") or 0),
-                            "rsi":          state.get("rsi"),
-                            "rs_vs_btc":    state.get("rs_vs_btc"),
-                            "exit_type":    "TIME_STOP",
-                            "exit_gain":    gain,
-                        }).execute()
-                        log.info(f"🏆 Hall of Fame: {product_id} TIME_STOP +{gain}%")
-                except Exception as e:
-                    log.warning(f"Hall of Fame insert failed ({product_id}): {e}")
+                _hof_time_stop(product_id, state, price)
                 return
 
             if hours_elapsed >= 6.0 and gain_pct < 3.0 and not is_grinder and not state.get("tp1_hit"):
@@ -1322,30 +1326,7 @@ def check_tp_sl(product_id: str, price: float, state: dict,
                     format_weak_signal_alert(product_id, l2_price, price,
                                              gain_pct, hours_elapsed))
                 log.info(f"WEAK SIGNAL EXIT (6hr): {product_id} {gain_pct:+.1f}% after {hours_elapsed:.1f}hr — no traction")
-                # ── Hall of Fame insert — positive time stop ─────────────────────────
-                try:
-                    l2p   = float(state.get("l2_price") or 0)
-                    peak  = float(state.get("peak_price") or 0)
-                    gain  = round((price - l2p) / l2p * 100, 1) if l2p > 0 else 0
-                    if l2p > 0 and gain >= 5.0:
-                        supabase.table("hall_of_fame").insert({
-                            "product_id":   product_id,
-                            "l2_type":      str(state.get("l2_type") or "volume"),
-                            "l2_fired_at":  str(state.get("l2_fired_at") or ""),
-                            "l2_price":     l2p,
-                            "peak_price":   peak,
-                            "peak_gain":    round((peak - l2p) / l2p * 100, 1) if l2p > 0 else 0,
-                            "tp1_hit":      bool(state.get("tp1_hit") or False),
-                            "tp2_hit":      False,
-                            "accel_count":  int(state.get("accel_count") or 0),
-                            "rsi":          state.get("rsi"),
-                            "rs_vs_btc":    state.get("rs_vs_btc"),
-                            "exit_type":    "TIME_STOP",
-                            "exit_gain":    gain,
-                        }).execute()
-                        log.info(f"🏆 Hall of Fame: {product_id} TIME_STOP +{gain}%")
-                except Exception as e:
-                    log.warning(f"Hall of Fame insert failed ({product_id}): {e}")
+                _hof_time_stop(product_id, state, price)
                 return
         except Exception as e:
             log.error(f"Time stop check failed for {product_id}: {e}")
@@ -2046,7 +2027,9 @@ def send_15min_summary():
     try:
         cutoff = (datetime.utcnow() - timedelta(minutes=15)).isoformat()
         res = supabase.table("coin_state")\
-            .select("*")\
+            .select("product_id,classification,change_24hr,current_price,"
+                    "accel_count,l2_fired,l2_type,range_from_low,"
+                    "coil_range_pct,peak_price,dump_fired,slow_grinder")\
             .gte("updated_at", cutoff)\
             .execute()
 
@@ -2168,7 +2151,9 @@ def send_1hour_summary():
     try:
         cutoff = (datetime.utcnow() - timedelta(hours=1)).isoformat()
         res = supabase.table("coin_state")\
-            .select("*")\
+            .select("product_id,change_24hr,current_price,l2_fired,l2_type,"
+                    "dump_fired,range_from_low,l2_price,accel_count,"
+                    "dump_price,peak_price")\
             .gte("updated_at", cutoff)\
             .order("change_24hr", desc=True)\
             .execute()
@@ -2559,13 +2544,7 @@ def update_prices_and_signals():
                     pos_state = state_cache.get(product, {})
                     if pos_state.get("position_closed") or pos_state.get("sl_hit"):
                         continue
-                    try:
-                        cs      = supabase.table("coin_state")\
-                            .select("l2_fired,accel_count")\
-                            .eq("product_id", product).execute()
-                        state_q = cs.data[0] if cs.data else {}
-                    except:
-                        state_q = {}
+                    state_q = state_cache.get(product, {})
                     l2_str  = "Yes" if state_q.get("l2_fired") else "No"
                     accel_c = state_q.get("accel_count", 0) or 0
                     send_telegram_alert(format_mega_pump_alert(
@@ -2605,23 +2584,18 @@ def update_prices_and_signals():
     pump_alerts.sort(key=lambda x: x[0], reverse=True)
     for change, product_id, alert in pump_alerts:
         if change >= PUMP_ALERT_THRESHOLD and should_alert(product_id, "pump"):
-            state_res = supabase.table("coin_state")\
-                .select("l2_fired_at, l2_fired")\
-                .eq("product_id", product_id)\
-                .execute()
-            if state_res.data:
-                l2_fired = state_res.data[0].get("l2_fired", False)
-                l2_at    = state_res.data[0].get("l2_fired_at")
-                if not l2_fired:
-                    continue  # no L2 — skip
-                if l2_at:
-                    l2_age_minutes = (
-                        datetime.utcnow() -
-                        datetime.fromisoformat(l2_at.replace("Z", "+00:00"))
-                        .replace(tzinfo=None)
-                    ).total_seconds() / 60
-                    if l2_age_minutes > 30:
-                        continue  # L2 too old — skip
+            pump_state = state_cache.get(product_id, {})
+            if not pump_state.get("l2_fired"):
+                continue  # no L2 — skip
+            l2_at = pump_state.get("l2_fired_at")
+            if l2_at:
+                l2_age_minutes = (
+                    datetime.utcnow() -
+                    datetime.fromisoformat(l2_at.replace("Z", "+00:00"))
+                    .replace(tzinfo=None)
+                ).total_seconds() / 60
+                if l2_age_minutes > 30:
+                    continue  # L2 too old — skip
             send_telegram_alert(alert)
 
     dump_alerts.sort(key=lambda x: x[0], reverse=True)

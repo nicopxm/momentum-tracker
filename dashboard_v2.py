@@ -1,3 +1,4 @@
+import math
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -330,7 +331,7 @@ def fetch_tp1_rate():
             return 0, 0, 0
         df = pd.DataFrame(res.data)
         total    = len(df)
-        tp1_hits = len(df[df["tp1_hit"] == True])
+        tp1_hits = int(df["tp1_hit"].sum())
         rate     = round((tp1_hits / total * 100), 1) if total > 0 else 0
         return rate, tp1_hits, total
     except:
@@ -437,7 +438,6 @@ def safe_val(val, fmt=None, fallback="—"):
     try:
         if val is None: return fallback
         f = float(val)
-        import math
         if math.isnan(f) or math.isinf(f): return fallback
         if fmt: return fmt.format(f)
         return f
@@ -445,7 +445,6 @@ def safe_val(val, fmt=None, fallback="—"):
 
 def safe_price(val, d=None):
     try:
-        import math
         v = float(val or 0)
         if math.isnan(v) or math.isinf(v): return "—"
         if v == 0: return "—"
@@ -635,7 +634,7 @@ if st.session_state.page == "Dashboard":
     trail_exit_count = 0
     if not states_df.empty:
         trail_df = states_df[
-            (states_df["tp2_hit"] == True) &
+            states_df["tp2_hit"] &
             (states_df["trailing_high"] > 0) &
             (states_df["l2_price"] > 0)
         ].copy()
@@ -645,25 +644,18 @@ if st.session_state.page == "Dashboard":
             worst_trail_exit = round(float(trail_df["trail_pct"].min()), 1)
             trail_exit_count = len(trail_df)
 
-    # Card 2 — Profitable exit rate
+    # Card 2 — Profitable exit rate (reuses trail_df from Card 1)
     profitable_exit_rate = 0
-    if trail_exit_count > 0 and not states_df.empty:
-        trail_df2 = states_df[
-            (states_df["tp2_hit"] == True) &
-            (states_df["trailing_high"] > 0) &
-            (states_df["l2_price"] > 0)
-        ].copy()
-        if not trail_df2.empty:
-            trail_df2["trail_pct"] = ((trail_df2["trailing_high"] - trail_df2["l2_price"]) / trail_df2["l2_price"] * 100)
-            profitable_count     = len(trail_df2[trail_df2["trail_pct"] > 0])
-            profitable_exit_rate = round((profitable_count / trail_exit_count) * 100)
+    if trail_exit_count > 0 and not trail_df.empty:
+        profitable_count     = len(trail_df[trail_df["trail_pct"] > 0])
+        profitable_exit_rate = round((profitable_count / trail_exit_count) * 100)
 
     # Card 3 — Avg peak high conviction (accel_count >= 1)
     avg_peak_high_conv = 0
     high_conv_count    = 0
     if not states_df.empty:
         hc_df = states_df[
-            (states_df["l2_fired"] == True) &
+            states_df["l2_fired"] &
             (states_df["accel_count"] >= 1) &
             (states_df["l2_price"] > 0) &
             (states_df["peak_price"] > 0)
@@ -678,7 +670,7 @@ if st.session_state.page == "Dashboard":
     total_l2s_all = 0
     if not states_df.empty:
         all_df = states_df[
-            (states_df["l2_fired"] == True) &
+            states_df["l2_fired"] &
             (states_df["l2_price"] > 0) &
             (states_df["peak_price"] > 0)
         ].copy()
@@ -856,11 +848,11 @@ if st.session_state.page == "Dashboard":
             active = active[
                 (active["change_24hr"] >= 5) |
                 (
-                    (active["l2_fired"] == True) &
-                    (active["position_closed"] == False) &
-                    (active["sl_hit"] == False) &
-                    (active["time_stop_hit"] == False) &
-                    (active["tp2_hit"] == False)
+                    active["l2_fired"] &
+                    ~active["position_closed"] &
+                    ~active["sl_hit"] &
+                    ~active["time_stop_hit"] &
+                    ~active["tp2_hit"]
                 )
             ].sort_values("change_24hr", ascending=False)
 
@@ -984,17 +976,10 @@ if st.session_state.page == "Dashboard":
             # Merge current price from coin_state for gain since entry calculation
             price_map = {}
             if not states_df.empty:
-                for _, cs_row in states_df.iterrows():
-                    price_map[cs_row["product_id"]] = {
-                        "current_price":   float(cs_row.get("current_price") or 0),
-                        "position_closed": bool(cs_row.get("position_closed") or False),
-                        "sl_hit":          bool(cs_row.get("sl_hit") or False),
-                        "time_stop_hit":   bool(cs_row.get("time_stop_hit") or False),
-                        "tp1_hit":         bool(cs_row.get("tp1_hit") or False),
-                        "rsi":             cs_row.get("rsi"),
-                        "macd_bullish":    bool(cs_row.get("macd_bullish") or False),
-                        "accel_count":     int(cs_row.get("accel_count") or 0),
-                    }
+                _cols = ["product_id","current_price","position_closed","sl_hit",
+                         "time_stop_hit","tp1_hit","rsi","macd_bullish","accel_count"]
+                _sub = states_df[[c for c in _cols if c in states_df.columns]].copy()
+                price_map = _sub.set_index("product_id").to_dict("index")
 
             feed_html = ""
             shown = 0
@@ -1142,7 +1127,6 @@ if st.session_state.page == "Dashboard":
                 hl_color = c_blue_bright if "CONFIRMED" in ml else c_amber if "PRE_BREAKOUT" in ml else c_sub
                 c24c   = c_green if c24 > 0 else c_red
 
-                import math
                 current_gain = round((pr - l2p) / l2p * 100, 1) if l2p > 0 and not math.isnan(pr) and not math.isnan(l2p) else 0
                 peak_gain    = round((peak - l2p) / l2p * 100, 1) if l2p > 0 and peak > 0 and not math.isnan(peak) else 0
                 trail_gain   = round((trail - l2p) / l2p * 100, 1) if l2p > 0 and trail > 0 and not math.isnan(trail) else 0
@@ -1230,7 +1214,6 @@ if st.session_state.page == "Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
 
-                import math
                 rsi_val = float(rsi) if rsi is not None else None
                 if rsi_val is not None and math.isnan(rsi_val): rsi_val = None
                 if rsi_val is None:
