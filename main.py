@@ -1260,8 +1260,8 @@ def check_tp_sl(product_id: str, price: float, state: dict,
     now         = datetime.utcnow().isoformat()
 
     # ── Wick-filtered trailing high from confirmed closes ─────────────────────
-    if df is not None and not df.empty and len(df) >= 8:
-        recent_close_high = float(df["close"].iloc[-8:].max())
+    if df is not None and not df.empty and len(df) >= 15:
+        recent_close_high = float(df["close"].iloc[-15:].max())
     else:
         recent_close_high = price
 
@@ -2448,7 +2448,7 @@ def update_prices_and_signals():
             # ── Intra-cycle high — wick-filtered highest close in last 8 min ──
             # Passed to update_coin_state so peak_price captures intra-poll spikes
             # without being fooled by rogue wicks (uses close not high)
-            recent_close_high = float(df["close"].iloc[-8:].max()) if len(df) >= 8 else price
+            recent_close_high = float(df["close"].iloc[-15:].max()) if len(df) >= 15 else price
 
             for label, config in MOMENTUM_CONFIGS.items():
                 signal = check_momentum(df, config, label, change_24hr, low_liquidity,

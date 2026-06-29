@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast; ast.parse\\(open\\('dashboard_v2.py'\\).read\\(\\)\\); print\\('OK'\\)\")"
+    ]
+  }
+}
