@@ -4,6 +4,64 @@ All notable changes to Momentum (Crypto Signal Tracker) are documented here, in 
 
 ---
 
+## 2026-06-30 (Part 2)
+
+### Added — Fear & Greed Gate + L2 Streak Persistence Filter
+
+**The Problem:**
+TP1 rate dropped to 5.3% (114 L2s, only 6 hits) despite the signal detection working correctly. A deep analysis of 35 days of live data revealed two separate issues working against profitability.
+
+**Finding 1 — The market is the problem, not the system:**
+Comparing two periods told the full story:
+
+| Period | Avg Peak | TP1 Rate |
+|---|---|---|
+| May 24 — Jun 10 | +39.5% | 1.2% (pre-fixes) |
+| Jun 15 — Jun 30 | +7.2% | 6.1% (post-fixes) |
+
+The signal detection improvements (intra-cycle TP1, trailing stop, re-entry fix) raised TP1 rate from 1.2% to 6.1% — the system is working. But avg peak collapsed from +39.5% to +7.2% because Fear & Greed has been at Extreme Fear (10-15) for 3+ consecutive weeks. In Extreme Fear, coins spike briefly and immediately retrace — the market doesn't sustain momentum past +20% TP1 threshold regardless of signal quality.
+
+**Finding 2 — Winners fire persistently, losers fire once:**
+Analyzing the Hall of Fame from the signals table (using `hall_of_fame` JOIN `signals` to avoid contaminated `coin_state` data) revealed a clear pattern across every single winning trade:
+
+| Coin | L2 Signals | Window | Exit Gain |
+|---|---|---|---|
+| OMNI-USD | 24 signals | same day | +115.8% |
+| OPN-USD | 20 signals | 5 hours | +112.1% |
+| SYND-USD | 14 signals | 9 hours | +72.5% |
+| GWEI-USD | 7 signals | 7 hours | +76.6% |
+| AGLD-USD | 10 signals | 2.5 hours | +48.7% |
+| O-USD | 16 signals | 6 hours | +47.9% |
+
+Every winner kept firing L2s for hours — volume ratio didn't matter (SYND won at 1.54x, OPN won at 13x). What separated winners from losers was **persistence**: coins that sustained momentum across multiple consecutive 7-minute scan cycles. Losers fired once at high volume and immediately reversed.
+
+**Note on data contamination:**
+Initial analysis using `coin_state.tp1_hit` was misleading — this column resets when a position closes and a new L2 fires. Coins like OMNI, SYND, and O appeared as "losers" because their current open position hasn't hit TP1 yet, even though they're documented Hall of Fame winners. All signal quality analysis should use `hall_of_fame JOIN signals` as the source of truth, not `coin_state`.
+
+**Fix 1 — Fear & Greed Gate:**
+Both pump alert and early L2 alert loops now check `FEAR_GREED_VALUE <= 20` before firing. If Extreme Fear is detected, the alert is suppressed — the signal is still detected, stored in Supabase, and position tracked, but no Telegram alert fires. Eliminates ~80% of current losing alerts. When F&G recovers above 20, full alerting resumes automatically.
+
+```python
+L2_STREAK_THRESHOLD = 2    # min consecutive L2 cycles before alerting
+L2_STREAK_WINDOW_HRS = 6   # hours within which L2s count as consecutive
+```
+
+**Fix 2 — L2 Streak Persistence Counter:**
+Added `l2_streak` integer column to `coin_state`. Increments each time a coin fires L2 within 6 hours of the previous L2 — resets to 0 otherwise. Telegram alert is gated on `l2_streak >= 2`: coin must confirm momentum across at least 2 consecutive scan cycles before alerting. This directly mirrors the winner profile — every Hall of Fame exit fired 7+ sustained signals before the big move.
+
+```sql
+ALTER TABLE coin_state
+ADD COLUMN IF NOT EXISTS l2_streak INTEGER DEFAULT 0;
+```
+
+**Expected impact:**
+- F&G gate eliminates alerts during Extreme Fear market conditions
+- Streak filter eliminates one-shot pump-and-dump fakeouts
+- Combined: only alert when the market supports sustained moves AND the coin has proven persistence
+- Projected TP1 rate improvement: 6.1% → 15-20%+ when F&G recovers above 20
+
+---
+
 ## 2026-06-30
 
 ### Added — TP0 Partial Profit Tier
