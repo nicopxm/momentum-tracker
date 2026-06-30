@@ -73,6 +73,8 @@ HARD_STOP_GRINDER    = -12.0  # wider stop for slow grinders (they breathe more)
 TRAILING_STOP_PCT    = 12.0   # trail -12% from highest confirmed close post-TP1
 GRINDER_TRAIL_PCT    = 15.0   # grinders trail wider at -15%
 WEAK_SIGNAL_HOURS    = 2.0    # hours before time stop check
+L2_STREAK_THRESHOLD  = 2      # min consecutive L2 cycles before alerting
+L2_STREAK_WINDOW_HRS = 6      # hours within which L2s count as consecutive
 WEAK_SIGNAL_GAIN_MIN = 3.0    # min % gain required to avoid time stop
 
 GRINDER_TIERS = [
@@ -709,7 +711,7 @@ def fetch_state_cache() -> dict:
     try:
         res = supabase.table("coin_state")\
             .select("product_id, accel_count, accel_stages, coiling, "
-                    "l2_fired, l2_price, l2_fired_at, l2_type, "
+                    "l2_streak, l2_fired, l2_price, l2_fired_at, l2_type, "
                     "dump_fired, dump_price, dump_fired_at, "
                     "peak_price, peak_at, slow_grinder, "
                     "tp0_hit, tp0_price, tp0_fired_at, "
@@ -1575,6 +1577,24 @@ def update_coin_state(product_id: str, price: float, change_24hr: float,
                 peak_price = price
                 peak_at    = now
 
+            # Update L2 streak counter
+            if is_l2:
+                existing_streak = int((existing or {}).get("l2_streak") or 0)
+                last_l2_at = (existing or {}).get("l2_fired_at")
+                if last_l2_at:
+                    try:
+                        last_dt = datetime.fromisoformat(
+                            str(last_l2_at).replace("Z", "+00:00")
+                        ).replace(tzinfo=None)
+                        hours_since = (datetime.utcnow() - last_dt).total_seconds() / 3600
+                        l2_streak = existing_streak + 1 if hours_since <= L2_STREAK_WINDOW_HRS else 1
+                    except Exception:
+                        l2_streak = 1
+                else:
+                    l2_streak = 1
+            else:
+                l2_streak = 0
+
             state = {
                 "accel_count":     accel_count,
                 "accel_stages":    accel_stages,
@@ -1610,7 +1630,24 @@ def update_coin_state(product_id: str, price: float, change_24hr: float,
                 state["ema_50"]            = indicators.get("ema_50")
                 state["price_above_ema20"] = indicators.get("price_above_ema20", False)
                 state["ema20_above_ema50"] = indicators.get("ema20_above_ema50", False)
-            state["rs_vs_btc"] = rs_vs_btc if rs_vs_btc is not None and not pd.isna(float(rs_vs_btc)) else 0.0
+            state["rs_vs_btc"]      = rs_vs_btc if rs_vs_btc is not None and not pd.isna(float(rs_vs_btc)) else 0.0
+            if is_l2:
+                existing_streak = int((existing or {}).get("l2_streak") or 0)
+                last_l2_at = (existing or {}).get("l2_fired_at")
+                if last_l2_at:
+                    try:
+                        last_dt = datetime.fromisoformat(
+                            str(last_l2_at).replace("Z", "+00:00")
+                        ).replace(tzinfo=None)
+                        hours_since = (datetime.utcnow() - last_dt).total_seconds() / 3600
+                        l2_streak = existing_streak + 1 if hours_since <= L2_STREAK_WINDOW_HRS else 1
+                    except Exception:
+                        l2_streak = 1
+                else:
+                    l2_streak = 1
+            else:
+                l2_streak = 0
+            state["l2_streak"]      = l2_streak
             state["classification"] = classify_coin({**existing, **state})
             supabase.table("coin_state").update(state)\
                 .eq("product_id", product_id).execute()
@@ -2618,6 +2655,9 @@ def update_prices_and_signals():
     pump_alerts.sort(key=lambda x: x[0], reverse=True)
     for change, product_id, alert in pump_alerts:
         if change >= PUMP_ALERT_THRESHOLD and should_alert(product_id, "pump"):
+            if FEAR_GREED_VALUE <= 20:
+                log.info(f"F&G {FEAR_GREED_VALUE} — Extreme Fear, pump alert suppressed for {product_id}")
+                continue
             pump_state = state_cache.get(product_id, {})
             if not pump_state.get("l2_fired"):
                 continue  # no L2 — skip
@@ -2630,6 +2670,10 @@ def update_prices_and_signals():
                 ).total_seconds() / 60
                 if l2_age_minutes > 30:
                     continue  # L2 too old — skip
+            streak = state_cache.get(product_id, {}).get("l2_streak", 0)
+            if streak < L2_STREAK_THRESHOLD:
+                log.info(f"L2 streak {streak} below threshold — alert held for {product_id}")
+                continue
             send_telegram_alert(alert)
 
     dump_alerts.sort(key=lambda x: x[0], reverse=True)
@@ -2641,6 +2685,9 @@ def update_prices_and_signals():
     early_l2_alerts.sort(key=lambda x: x[0], reverse=True)
     for change, product_id, alert in early_l2_alerts[:EARLY_L2_MAX_PER_CYCLE]:
         if change >= PUMP_ALERT_THRESHOLD and should_alert(product_id, "early_l2"):
+            if FEAR_GREED_VALUE <= 20:
+                log.info(f"F&G {FEAR_GREED_VALUE} — Extreme Fear, early L2 alert suppressed for {product_id}")
+                continue
             # Note: pump cooldown intentionally NOT stamped here.
             # A standard L2 firing shortly after = volume confirmation of the early signal.
             # That confirmation alert is valuable — don't suppress it.
