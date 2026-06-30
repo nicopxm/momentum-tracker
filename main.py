@@ -61,6 +61,8 @@ DYNAMIC_L2_MIN_THRESHOLD  = 1.3    # floor: volume ratio never lowered below thi
 EARLY_L2_MAX_PER_CYCLE    = 3      # max dynamic L2 alerts fired per scan cycle
 
 # ── TP/SL Position Management ─────────────────────────────────────────────────
+TP0_PCT              = 15.0   # early partial profit threshold %
+TP0_SELL_PCT         = 25.0   # sell 25% at TP0; remainder holds for TP1/trail
 TP1_PCT              = 20.0   # partial profit threshold %
 TP1_SELL_STANDARD    = 50     # % to sell at TP1 for standard L2
 TP1_SELL_EXPLOSIVE   = 30     # % to sell at TP1 for explosive L2 (accel >= 3)
@@ -710,6 +712,7 @@ def fetch_state_cache() -> dict:
                     "l2_fired, l2_price, l2_fired_at, l2_type, "
                     "dump_fired, dump_price, dump_fired_at, "
                     "peak_price, peak_at, slow_grinder, "
+                    "tp0_hit, tp0_price, tp0_fired_at, "
                     "tp1_hit, tp2_hit, sl_hit, time_stop_hit, "
                     "position_closed, trailing_high")\
             .execute()
@@ -1226,12 +1229,20 @@ def check_tx_spike(product_id: str, df: pd.DataFrame, change_24hr: float, price:
 # ─────────────────────────────────────────────
 
 def _hof_time_stop(product_id: str, state: dict, price: float):
-    """Insert a TIME_STOP win into Hall of Fame. Shared by 2hr and 6hr exit paths."""
+    """Insert a time/dump exit into Hall of Fame. Shared by 2hr and 6hr exit paths."""
     try:
         l2p  = float(state.get("l2_price") or 0)
         peak = float(state.get("peak_price") or 0)
         gain = round((price - l2p) / l2p * 100, 1) if l2p > 0 else 0
         if l2p > 0 and gain >= 5.0:
+            tp2_hit   = bool(state.get("tp2_hit") or False)
+            tp1_hit   = bool(state.get("tp1_hit") or False)
+            tp0_hit   = bool(state.get("tp0_hit") or False)
+            exit_type = (
+                "TP1_TRAIL"   if tp2_hit  else
+                "TP0_PARTIAL" if tp0_hit  else
+                "TIME_STOP"
+            )
             supabase.table("hall_of_fame").insert({
                 "product_id":  product_id,
                 "l2_type":     str(state.get("l2_type") or "volume"),
@@ -1239,15 +1250,16 @@ def _hof_time_stop(product_id: str, state: dict, price: float):
                 "l2_price":    l2p,
                 "peak_price":  peak,
                 "peak_gain":   round((peak - l2p) / l2p * 100, 1) if l2p > 0 else 0,
-                "tp1_hit":     bool(state.get("tp1_hit") or False),
-                "tp2_hit":     False,
+                "tp0_hit":     tp0_hit,
+                "tp1_hit":     tp1_hit,
+                "tp2_hit":     tp2_hit,
                 "accel_count": int(state.get("accel_count") or 0),
                 "rsi":         state.get("rsi"),
                 "rs_vs_btc":   state.get("rs_vs_btc"),
-                "exit_type":   "TIME_STOP",
+                "exit_type":   exit_type,
                 "exit_gain":   gain,
             }).execute()
-            log.info(f"🏆 Hall of Fame: {product_id} TIME_STOP +{gain}%")
+            log.info(f"🏆 Hall of Fame: {product_id} {exit_type} +{gain}%")
     except Exception as e:
         log.warning(f"Hall of Fame insert failed ({product_id}): {e}")
 
@@ -1336,6 +1348,28 @@ def check_tp_sl(product_id: str, price: float, state: dict,
     peak_gain    = (peak_price - l2_price) / l2_price * 100 if l2_price > 0 else 0
     be_triggered = peak_gain >= BREAKEVEN_TRIGGER
     hard_stop    = HARD_STOP_GRINDER if is_grinder else HARD_STOP_STANDARD
+
+    # ── TP0 — early partial profit lock ──────────────────────────────────────
+    if not state.get("tp0_hit") and not state.get("tp1_hit") and l2_price > 0:
+        intra_high = recent_close_high if df is not None else price
+        gain_now = ((intra_high - l2_price) / l2_price) * 100
+        if gain_now >= TP0_PCT:
+            try:
+                supabase.table("coin_state").update({
+                    "tp0_hit":      True,
+                    "tp0_price":    intra_high,
+                    "tp0_fired_at": now,
+                }).eq("product_id", product_id).execute()
+                send_telegram_alert(
+                    f"🟡 TP0 PARTIAL — {product_id}\n"
+                    f"Entry (L2) : ${l2_price:.6f}\n"
+                    f"Now         : ${intra_high:.6f} (+{gain_now:.1f}%)\n"
+                    f"Action      : Sell {TP0_SELL_PCT:.0f}% now — early profit lock\n"
+                    f"Remainder   : Holding for TP1 at +{TP1_PCT:.0f}%"
+                )
+                log.info(f"TP0 fired: {product_id} +{gain_now:.1f}%")
+            except Exception as e:
+                log.warning(f"TP0 update failed ({product_id}): {e}")
 
     # ── Intra-cycle TP1 check ─────────────────────────────────────────────────
     # If the intra-cycle close high crossed +20% but poll price hasn't caught it,
