@@ -778,7 +778,7 @@ if st.session_state.page == "Dashboard":
         <div class="metric-card-lbl" style="font-size:10px;">Open Positions</div>
         <div class="metric-card-val" style="font-size:22px; margin-top:2px; color:{open_color};">{open_count}</div>
         <div class="metric-card-sub" style="color:{open_color}; font-size:10px; white-space:normal; word-break:break-word; line-height:1.4; max-height:2.8em; overflow:hidden;">{open_coins_str}</div>
-        {f'<div style="font-size:9px;color:{c_sub};margin-top:2px">{open_coins_extra}</div>' if open_coins_extra else ''}
+        <div style="font-size:9px;color:{c_sub};margin-top:2px">{open_coins_extra}</div>
       </div>
       <div class="metric-card-sm" style="width:160px;">
         <div class="metric-card-lbl" style="font-size:10px;">TP1 Success Rate</div>
