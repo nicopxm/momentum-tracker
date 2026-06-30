@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Momentum — Case Study</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0a0a0f;
+    --bg2:     #12121a;
+    --card:    #12121a;
+    --navy:    #0E1B2E;
+    --gold:    #D4A853;
+    --amber:   #B8923A;
+    --green:   #00ff88;
+    --red:     #ff4444;
+    --blue:    #2979FF;
+    --text:    #e8e8f0;
+    --sub:     #888888;
+    --border:  #1e1e2e;
+    --gold-dim: rgba(212,168,83,0.08);
+    --gold-mid: rgba(212,168,83,0.22);
+    --mono:    'JetBrains Mono', monospace;
+    --sans:    'Outfit', sans-serif;
+    --display: 'Playfair Display', serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* subtle dot grid matching dashboard dark mode */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* gold radial glow */
+  .glow {
+    position: fixed;
+    width: 700px; height: 700px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(212,168,83,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    top: -250px; left: -250px;
+  }
+
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 32px;
+    position: relative;
+    z-index: 1;
+  }
+
+  section { padding: 80px 0; }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(14,27,46,0.92);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    font-weight: 500;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--sub);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--gold); }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 160px 0 80px;
+    position: relative;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: var(--gold-dim);
+    border: 1px solid var(--gold-mid);
+    border-radius: 100px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    margin-bottom: 32px;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.75); }
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(48px, 7vw, 84px);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin-bottom: 24px;
+    color: #F7F4EE;
+  }
+
+  .hero-accent { color: var(--gold); font-style: italic; }
+
+  .hero-sub {
+    font-size: 17px;
+    color: var(--sub);
+    max-width: 580px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    font-weight: 300;
+  }
+
+  .meta-row {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .meta-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--sub);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .meta-value {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  /* ── Impact grid ── */
+  .impact-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 60px 0;
+  }
+
+  .impact-card {
+    background: linear-gradient(145deg, var(--card) 0%, var(--gold-dim) 100%);
+    padding: 28px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .impact-num {
+    font-family: var(--mono);
+    font-size: 36px;
+    font-weight: 500;
+    color: var(--gold);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .impact-desc {
+    font-size: 13px;
+    color: var(--sub);
+    line-height: 1.5;
+    font-family: var(--sans);
+  }
+
+  /* ── Section headers ── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--gold);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-size: clamp(26px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    margin-bottom: 24px;
+    color: var(--text);
+  }
+
+  .section-intro {
+    font-size: 16px;
+    color: var(--sub);
+    max-width: 640px;
+    line-height: 1.75;
+    margin-bottom: 48px;
+    font-weight: 300;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: linear-gradient(145deg, var(--card) 0%, var(--gold-dim) 100%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+  }
+
+  .card-body {
+    font-size: 14px;
+    color: var(--sub);
+    line-height: 1.75;
+  }
+
+  /* ── Problem/Solution split ── */
+  .split-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .problem-card {
+    border-color: rgba(255,68,68,0.15);
+    background: linear-gradient(145deg, rgba(255,68,68,0.04) 0%, var(--card) 100%);
+  }
+
+  .solution-card {
+    border-color: rgba(0,255,136,0.1);
+    background: linear-gradient(145deg, rgba(0,255,136,0.03) 0%, var(--card) 100%);
+  }
+
+  /* ── Tech stack ── */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .stack-card {
+    background: linear-gradient(145deg, var(--card) 0%, var(--gold-dim) 100%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .stack-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 24px rgba(212,168,83,0.12);
+  }
+
+  .stack-icon {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .stack-name {
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .stack-desc {
+    font-size: 13px;
+    color: var(--sub);
+    line-height: 1.55;
+  }
+
+  /* ── Code blocks ── */
+  .code-block {
+    background: #07090f;
+    border: 1px solid rgba(255,255,255,0.05);
+    border-left: 2px solid rgba(184,146,58,0.35);
+    border-radius: 10px;
+    padding: 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.85;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+
+  .code-comment { color: #4a5568; }
+  .code-key     { color: var(--blue); }
+  .code-val     { color: var(--gold); }
+  .code-str     { color: var(--amber); }
+
+  /* ── Signal flow ── */
+  .signal-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .signal-step {
+    display: flex;
+    gap: 20px;
+    position: relative;
+    padding-bottom: 32px;
+  }
+
+  .signal-step:last-child { padding-bottom: 0; }
+
+  .signal-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .signal-dot {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--gold-dim);
+    border: 1px solid var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+
+  .signal-connector {
+    width: 1px;
+    flex: 1;
+    background: linear-gradient(to bottom, var(--amber), transparent);
+    margin: 6px 0;
+    opacity: 0.4;
+  }
+
+  .signal-content {
+    flex: 1;
+    padding-top: 6px;
+  }
+
+  .signal-title {
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .signal-desc {
+    font-size: 14px;
+    color: var(--sub);
+    line-height: 1.65;
+  }
+
+  /* ── Results table ── */
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 13px;
+    margin: 32px 0;
+  }
+
+  .results-table th {
+    text-align: left;
+    padding: 12px 16px;
+    color: var(--sub);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--sans);
+  }
+
+  .results-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  .results-table tr:last-child td { border-bottom: none; }
+
+  .results-table tr:hover td {
+    background: var(--gold-dim);
+  }
+
+  .gain-positive { color: var(--green); font-weight: 500; }
+  .gain-negative { color: var(--red); }
+  .gain-neutral  { color: var(--gold); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-family: var(--mono);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .badge-green { background: rgba(0,255,136,0.1);  color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+  .badge-amber { background: var(--gold-dim);       color: var(--gold);  border: 1px solid var(--gold-mid); }
+  .badge-red   { background: rgba(255,68,68,0.1);  color: var(--red);   border: 1px solid rgba(255,68,68,0.25); }
+
+  /* ── Egress chart ── */
+  .egress-visual {
+    background: linear-gradient(145deg, var(--card) 0%, var(--gold-dim) 100%);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 32px;
+    margin: 32px 0;
+  }
+
+  .egress-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .egress-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--sub);
+    width: 185px;
+    flex-shrink: 0;
+  }
+
+  .egress-bar-wrap {
+    flex: 1;
+    height: 7px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .egress-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .egress-bar.before { background: var(--red); }
+  .egress-bar.after  { background: var(--gold); }
+
+  .egress-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 80px;
+    text-align: right;
+  }
+
+  /* ── Reflections ── */
+  .reflection-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .reflection-card {
+    background: linear-gradient(145deg, var(--card) 0%, var(--gold-dim) 100%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: border-color 0.2s;
+  }
+
+  .reflection-card:hover { border-color: var(--amber); }
+
+  .reflection-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .reflection-label.learned { color: var(--gold); }
+  .reflection-label.would   { color: var(--amber); }
+
+  .reflection-card p {
+    font-size: 14px;
+    color: var(--sub);
+    line-height: 1.75;
+  }
+
+  /* ── Roadmap ── */
+  .roadmap-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 40px;
+  }
+
+  .roadmap-item {
+    background: linear-gradient(145deg, var(--card) 0%, var(--gold-dim) 100%);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 14px;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+
+  .roadmap-item:hover { transform: translateY(-2px); }
+
+  .roadmap-item.done {
+    border-color: rgba(212,168,83,0.25);
+    background: linear-gradient(145deg, var(--card) 0%, rgba(212,168,83,0.1) 100%);
+  }
+
+  .roadmap-item.active {
+    border-color: rgba(41,121,255,0.25);
+    background: linear-gradient(145deg, var(--card) 0%, rgba(41,121,255,0.07) 100%);
+  }
+
+  .roadmap-phase {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--sub);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .roadmap-name {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .roadmap-item.done   .roadmap-name { color: var(--gold); }
+  .roadmap-item.active .roadmap-name { color: var(--blue); }
+
+  .roadmap-status {
+    font-family: var(--mono);
+    font-size: 10px;
+    margin-top: 10px;
+  }
+
+  .roadmap-item.done   .roadmap-status { color: var(--gold); }
+  .roadmap-item.active .roadmap-status { color: var(--blue); }
+  .roadmap-item:not(.done):not(.active) .roadmap-status { color: var(--sub); }
+
+  /* ── Divider ── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0;
+  }
+
+  /* ── Alert preview ── */
+  .alert-preview {
+    background: #07090f;
+    border: 1px solid rgba(255,255,255,0.05);
+    border-left: 2px solid rgba(212,168,83,0.35);
+    border-radius: 10px;
+    padding: 22px 26px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 2.1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .alert-preview::before {
+    content: 'TELEGRAM ALERT';
+    position: absolute;
+    top: 13px; right: 18px;
+    font-size: 10px;
+    color: var(--sub);
+    letter-spacing: 0.12em;
+    font-family: var(--mono);
+  }
+
+  .alert-green { color: var(--green); }
+  .alert-amber { color: var(--gold); }
+  .alert-muted { color: var(--sub); }
+  .alert-white { color: var(--text); }
+
+  /* ── Footer ── */
+  footer {
+    padding: 56px 0;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .footer-text {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--sub);
+    letter-spacing: 0.05em;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 28px;
+    justify-content: center;
+    margin-top: 18px;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--sub);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--gold); }
+
+  /* ── Hero fade-in (runs immediately on load) ── */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(14px);
+    animation: fadeIn 0.6s ease forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+  .fade-in:nth-child(1) { animation-delay: 0.05s; }
+  .fade-in:nth-child(2) { animation-delay: 0.18s; }
+  .fade-in:nth-child(3) { animation-delay: 0.30s; }
+  .fade-in:nth-child(4) { animation-delay: 0.42s; }
+
+  /* ── Scroll-triggered slide-up ── */
+  .slide-up {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .slide-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 768px) {
+    .impact-grid    { grid-template-columns: repeat(2, 1fr); }
+    .split-grid     { grid-template-columns: 1fr; }
+    .stack-grid     { grid-template-columns: repeat(2, 1fr); }
+    .reflection-grid{ grid-template-columns: 1fr; }
+    .roadmap-grid   { grid-template-columns: repeat(2, 1fr); }
+    .nav-links      { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="glow"></div>
+
+<nav>
+  <div class="nav-logo">// Momentum</div>
+  <ul class="nav-links">
+    <li><a href="#problem">Problem</a></li>
+    <li><a href="#solution">Solution</a></li>
+    <li><a href="#technical">Technical</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#reflections">Reflections</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="status-badge fade-in">
+      <div class="status-dot"></div>
+      ACTIVE PROJECT — LIVE IN PRODUCTION
+    </div>
+    <h1 class="fade-in">Momen<span class="hero-accent">tum</span></h1>
+    <p class="hero-sub fade-in">
+      A 24/7 automated crypto momentum tracker that surfaces high-probability 
+      pump setups before they reach mainstream visibility — scanning all 231 
+      Coinbase USD pairs every 7 minutes with automated TP/SL position management.
+    </p>
+    <div class="meta-row fade-in">
+      <div class="meta-item">
+        <span class="meta-label">Timeline</span>
+        <span class="meta-value">May 2026 — Present</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Role</span>
+        <span class="meta-value">Solo Engineer</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Status</span>
+        <span class="meta-value">Live · V2 Deployed</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Live Dashboard</span>
+        <span class="meta-value"><a href="https://momentum-tracker-mirjjfgreydqj26dgyswz7.streamlit.app/" style="color: var(--gold); text-decoration: none;">Open Dashboard ↗</a></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Telegram</span>
+        <span class="meta-value"><a href="https://t.me/MomentumAlphaSignals" style="color: var(--gold); text-decoration: none;">Live Signals ↗</a></span>
+      </div>
+    </div>
+
+    <div class="impact-grid" style="margin-top: 60px;">
+      <div class="impact-card fade-in">
+        <div class="impact-num">+115.8%</div>
+        <div class="impact-desc">Best captured exit — OMNI-USD TP1 + trail exit · 35 days live</div>
+      </div>
+      <div class="impact-card fade-in">
+        <div class="impact-num">84%</div>
+        <div class="impact-desc">Egress reduction after architecture overhaul (16GB → 2.5GB/mo)</div>
+      </div>
+      <div class="impact-card fade-in">
+        <div class="impact-num">26</div>
+        <div class="impact-desc">Documented wins auto-logged to Hall of Fame since May 24</div>
+      </div>
+      <div class="impact-card fade-in">
+        <div class="impact-num">6</div>
+        <div class="impact-desc">Independent signal types fused into one alert system with 0–100 score</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="container">
+    <div class="section-label">01 — Problem</div>
+    <h2>By the time you see it,<br>it's already too late</h2>
+    <p class="section-intro">
+      Non-professional crypto traders have no real-time infrastructure to detect 
+      early momentum before it becomes mainstream. The tools that exist are either 
+      priced for institutions or focused on large caps that don't move the way 
+      mid and small cap coins do.
+    </p>
+
+    <div class="split-grid">
+      <div class="card problem-card">
+        <div class="card-title">The Timing Problem</div>
+        <div class="card-body">
+          By the time a pump is visible on a chart, the best entry is gone. 
+          Volume confirmation — the signal most tools wait for — typically arrives 
+          after 15–30% of the move has already happened. You're buying the momentum, 
+          not getting ahead of it.
+        </div>
+      </div>
+      <div class="card problem-card">
+        <div class="card-title">The Coverage Problem</div>
+        <div class="card-body">
+          Coinbase lists 231+ active USD pairs. Manually monitoring even 20 of them 
+          for early signals is impossible in real time. The best moves — BOBBOB, FIDA, 
+          FIGHT, KTA — happened on coins most traders weren't watching at all.
+        </div>
+      </div>
+      <div class="card problem-card">
+        <div class="card-title">The Noise Problem</div>
+        <div class="card-body">
+          Simple volume spike alerts generate enormous false positive rates. Without 
+          multi-signal confirmation — volume ratio, acceleration stages, liquidity 
+          filters, RSI — every alert feels like a potential trade. Alert fatigue 
+          kills execution discipline.
+        </div>
+      </div>
+      <div class="card problem-card">
+        <div class="card-title">The Exit Problem</div>
+        <div class="card-body">
+          Even when you catch the right coin at the right time, no automated exit 
+          signal exists. BILL-USD peaked at +63% from entry and is now -41%. 
+          UP-USD peaked at +103% and is now below entry. Without TP/SL automation, 
+          gains evaporate.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- SOLUTION -->
+<section id="solution">
+  <div class="container">
+    <div class="section-label">02 — Solution</div>
+    <h2>A multi-signal momentum<br>engine with automated exits</h2>
+    <p class="section-intro">
+      Momentum fuses six independent signal types into a single detection pipeline, 
+      applies dynamic thresholds based on current market context, and manages 
+      positions automatically from entry through exit.
+    </p>
+
+    <div class="signal-flow">
+      <div class="signal-step">
+        <div class="signal-line">
+          <div class="signal-dot">L1</div>
+          <div class="signal-connector"></div>
+        </div>
+        <div class="signal-content">
+          <div class="signal-title">Price Momentum Detection</div>
+          <div class="signal-desc">
+            Four timeframes (5min, 15min, 30min, 1hr) monitored simultaneously. 
+            L1 fires on price threshold breach. Filters: low liquidity (&lt;$50k daily volume), 
+            direction check, 24hr context. 231 coins × 4 configs every 7 minutes.
+          </div>
+        </div>
+      </div>
+      <div class="signal-step">
+        <div class="signal-line">
+          <div class="signal-dot">L2</div>
+          <div class="signal-connector"></div>
+        </div>
+        <div class="signal-content">
+          <div class="signal-title">Volume Confirmation (Standard L2)</div>
+          <div class="signal-desc">
+            Upgrades L1 when volume ratio exceeds timeframe threshold (1.5x–3.0x). 
+            Requires positive price change, positive 24hr change, sufficient liquidity. 
+            L2 is the primary alert signal — the system only sends Telegram alerts 
+            on confirmed L2 or above.
+          </div>
+        </div>
+      </div>
+      <div class="signal-step">
+        <div class="signal-line">
+          <div class="signal-dot">DL2</div>
+          <div class="signal-connector"></div>
+        </div>
+        <div class="signal-content">
+          <div class="signal-title">Dynamic L2 — Early Detection (Option #2)</div>
+          <div class="signal-desc">
+            The core innovation. When a coin already has strong 24hr momentum (≥15%), 
+            five safeguards evaluate whether to lower the volume bar: 
+            (1) Fresh leg test — price rising in last 30min,
+            (2) Peak proximity — &gt;8% below peak,
+            (3) Acceleration required — ≥1 confirmed stage,
+            (4) Volume trend — 2 of 3 candles rising,
+            (5) Separate alert type — labeled UNCONFIRMED so traders know the risk.
+            Fires as EARLY L2 — does not pollute the standard L2 signal.
+          </div>
+        </div>
+      </div>
+      <div class="signal-step">
+        <div class="signal-line">
+          <div class="signal-dot">HH</div>
+          <div class="signal-connector"></div>
+        </div>
+        <div class="signal-content">
+          <div class="signal-title">HH/HL Multi-Leg Pattern Detection</div>
+          <div class="signal-desc">
+            Reads from daily_snapshots (one row per coin per day). Detects Higher Highs 
+            and Higher Lows — the structural anatomy of a healthy multi-day uptrend. 
+            3% tolerance on lows to filter wick noise. Returns CONFIRMED (HH+HL) or 
+            PRE_BREAKOUT (HL only — best entry). Calculates last_hl_price as 
+            natural support/entry level.
+          </div>
+        </div>
+      </div>
+      <div class="signal-step">
+        <div class="signal-line">
+          <div class="signal-dot">GR</div>
+          <div class="signal-connector"></div>
+        </div>
+        <div class="signal-content">
+          <div class="signal-title">Slow Grinder Detection</div>
+          <div class="signal-desc">
+            Three-tier system (Fast/Mid/Slow) based on daily compounded rate from 
+            daily_snapshots. Approach B uptrend check: last 25% price average must 
+            be 5%+ above first 25%. Capped mean for avg_vol (cap at 10x) prevents 
+            single volume spikes from disqualifying genuine grinders. 
+            Slow grinders exempt from weak signal time stops.
+          </div>
+        </div>
+      </div>
+      <div class="signal-step">
+        <div class="signal-line">
+          <div class="signal-dot">TP</div>
+        </div>
+        <div class="signal-content">
+          <div class="signal-title">Automated TP/SL Position Management</div>
+          <div class="signal-desc">
+            Five exit types: TP1 (+20% partial, size varies by profile), 
+            trailing stop (wick-filtered using 1-min closes not highs), 
+            dynamic hard stop (-8% standard / -12% grinders), 
+            breakeven trigger (peak ever +12% moves floor to entry), 
+            weak signal exit (2hr no traction — grinders exempt). 
+            Boolean flags prevent re-firing. Position resets on new L2.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert preview -->
+    <div style="margin-top: 48px;">
+      <div class="section-label" style="margin-bottom: 16px;">Sample Alert Output</div>
+      <div class="alert-preview">
+        <div class="alert-green">TAKE PARTIAL PROFIT — DRIFT-USD</div>
+        <div class="alert-muted">Profile    : Standard → sell 50%</div>
+        <div class="alert-white">Entry (L2) : $0.029000</div>
+        <div class="alert-green">Now        : $0.035000 (+20.7%)</div>
+        <div class="alert-white">Action     : Sell 50% now — lock in gains</div>
+        <div class="alert-muted">Remainder  : Trailing stop activated (-12% from high)</div>
+        <div class="alert-green">Stop moved : Breakeven $0.029000 — no more losing trades</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- TECHNICAL -->
+<section id="technical">
+  <div class="container">
+    <div class="section-label">03 — Technical</div>
+    <h2>Architecture &amp; Engineering<br>Decisions</h2>
+
+    <!-- Stack -->
+    <div class="stack-grid" style="margin-bottom: 48px;">
+      <div class="stack-card">
+        <div class="stack-name">Python 3.13</div>
+        <div class="stack-desc">Core scanner, signal detection, APScheduler for 7-minute cycles and dedicated scan jobs</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-name">Railway</div>
+        <div class="stack-desc">24/7 worker deployment. max_instances=1 prevents overlapping scan cycles</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-name">Supabase (PostgreSQL)</div>
+        <div class="stack-desc">Primary datastore. 7 tables, optimized for minimal egress on free tier</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-name">Streamlit Cloud</div>
+        <div class="stack-desc">Public dashboard with auto-refresh, CDMX timezone, light/dark mode</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-name">Telegram Bot API</div>
+        <div class="stack-desc">Real-time alerts with cooldown system, 15min/1hr summaries</div>
+      </div>
+      <div class="stack-card">
+        <div class="stack-name">Coinbase Advanced API</div>
+        <div class="stack-desc">231 USD pairs, OHLCV candles (250 per coin), product details</div>
+      </div>
+    </div>
+
+    <!-- DB Optimization -->
+    <div class="section-label">Database Optimization</div>
+    <h2 style="font-size: 28px; margin-bottom: 16px;">Egress reduction: 16GB → 2.5GB/month</h2>
+    <p class="section-intro" style="margin-bottom: 32px;">
+      The Supabase free tier limits egress to 5GB/month. The original architecture 
+      generated an estimated 16GB/month. Four architectural changes brought it to 2.5GB.
+    </p>
+
+    <div class="egress-visual">
+      <div style="margin-bottom: 24px; font-family: var(--mono); font-size: 11px; color: var(--sub); letter-spacing: 0.1em; text-transform: uppercase;">Daily Egress by Source</div>
+      
+      <div class="egress-row">
+        <div class="egress-label">momentum_cache (before)</div>
+        <div class="egress-bar-wrap"><div class="egress-bar before" style="width: 66%"></div></div>
+        <div class="egress-num" style="color: var(--red)">360MB/day</div>
+      </div>
+      <div class="egress-row">
+        <div class="egress-label">momentum_cache (after)</div>
+        <div class="egress-bar-wrap"><div class="egress-bar after" style="width: 11%"></div></div>
+        <div class="egress-num" style="color: var(--green)">60MB/day</div>
+      </div>
+
+      <div class="egress-row" style="margin-top: 16px;">
+        <div class="egress-label">coiling scan (before)</div>
+        <div class="egress-bar-wrap"><div class="egress-bar before" style="width: 19%"></div></div>
+        <div class="egress-num" style="color: var(--red)">106MB/day</div>
+      </div>
+      <div class="egress-row">
+        <div class="egress-label">coiling scan (after)</div>
+        <div class="egress-bar-wrap"><div class="egress-bar after" style="width: 2.4%"></div></div>
+        <div class="egress-num" style="color: var(--green)">13MB/day</div>
+      </div>
+
+      <div class="egress-row" style="margin-top: 16px;">
+        <div class="egress-label">coin_state reads (before)</div>
+        <div class="egress-bar-wrap"><div class="egress-bar before" style="width: 12%"></div></div>
+        <div class="egress-num" style="color: var(--red)">65MB/day</div>
+      </div>
+      <div class="egress-row">
+        <div class="egress-label">coin_state reads (after)</div>
+        <div class="egress-bar-wrap"><div class="egress-bar after" style="width: 0.4%"></div></div>
+        <div class="egress-num" style="color: var(--green)">2MB/day</div>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <span class="code-comment"># Before: 231 individual SELECT * per cycle</span><br>
+      <span class="code-comment"># 231 × 288 cycles/day × ~1KB = ~65MB/day</span><br>
+      res = supabase.table("coin_state")<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;.select(<span class="code-str">"*"</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;.eq(<span class="code-str">"product_id"</span>, product_id)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;.execute()<br><br>
+      <span class="code-comment"># After: 1 batch query per cycle for all 231 coins</span><br>
+      <span class="code-comment"># Expanded state_cache eliminates per-coin reads entirely</span><br>
+      res = supabase.table(<span class="code-str">"coin_state"</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;.select(<span class="code-str">"product_id, accel_count, coiling, l2_fired, ..."</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;.execute()<br>
+      state_cache = {r[<span class="code-str">"product_id"</span>]: r <span class="code-key">for</span> r <span class="code-key">in</span> res.data}
+    </div>
+
+    <!-- TA Indicators -->
+    <div class="section-label" style="margin-top: 48px;">Technical Indicators</div>
+    <h2 style="font-size: 28px; margin-bottom: 24px;">L3 Signal Layer</h2>
+    <div class="split-grid">
+      <div class="card">
+        <div class="card-title">RSI-14 (Wilder's Smoothing)</div>
+        <div class="card-body">
+          Calculated from 350 one-minute candles already fetched per cycle. 
+          Zero additional API calls. RSI &gt; 75 flags overbought entries — 
+          validated when FIS-USD L2 fired at RSI 83 and subsequently faded -13%.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">MACD (12/26/9)</div>
+        <div class="card-body">
+          Bullish cross detection within the last 3 candles. Histogram direction 
+          tracked. Combined with RSI for highest-conviction entries: RSI &lt;60 
+          + MACD bullish = strong setup.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">EMA Structure (20/50)</div>
+        <div class="card-body">
+          Price above EMA-20 above EMA-50 = full bullish structure. 
+          Stored as booleans in coin_state. Calculated from existing candle data. 
+          Shown on every L2 alert.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Relative Strength vs BTC</div>
+        <div class="card-body">
+          change_24hr − BTC_change_24hr. Updated every cycle when BTC-USD 
+          processes. Coins significantly outperforming BTC show coin-specific 
+          demand, not just market beta.
+        </div>
+      </div>
+    </div>
+
+    <!-- Trailing Stop Engineering -->
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-title">Wick-Filtered Trailing Stop</div>
+      <div class="card-body">
+        <p style="margin-bottom: 12px;">
+          The critical engineering decision in the TP/SL system. Low-cap momentum 
+          coins frequently generate "rogue wicks" — a single market buy order 
+          into a thin order book creates a 1-minute candle spike that instantly 
+          reverts. Using <code style="color: var(--gold)">df["high"]</code> for 
+          the trailing stop would trigger false exits on these wicks.
+        </p>
+        <p>
+          Solution: trail on <code style="color: var(--gold)">df["close"].iloc[-15:].max()</code> — 
+          the highest confirmed 1-minute close, not the highest wick. 
+          Candle closes represent agreed-upon market value. Wicks represent 
+          temporary liquidity voids. The same wick-filtered close feeds 
+          <code style="color: var(--gold)">peak_price</code> in coin_state, 
+          ensuring the breakeven trigger activates correctly even when intra-cycle 
+          spikes occur between 7-minute polls.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- RESULTS -->
+<section id="results">
+  <div class="container">
+    <div class="section-label">04 — Results</div>
+    <h2>Live performance<br>on real Coinbase pairs</h2>
+    <p class="section-intro">
+      All entries are real L2 signals fired by the live system. 
+      Exit prices are real — every profitable trade is auto-logged to the Hall of Fame 
+      in Supabase. BILL and FIS are included as lessons that drove system improvements.
+    </p>
+
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Coin</th>
+          <th>L2 Entry</th>
+          <th>Signal Type</th>
+          <th>Peak Gain</th>
+          <th>Exit Type</th>
+          <th>Captured</th>
+          <th>Outcome</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">OMNI-USD</td>
+          <td style="font-family: var(--mono)">$0.746</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+115.8%</td>
+          <td class="gain-positive">TP1 + Trail</td>
+          <td class="gain-positive">+115.8%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">OPN-USD</td>
+          <td style="font-family: var(--mono)">$0.1268</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+148.5%</td>
+          <td class="gain-positive">TP1 + Trail</td>
+          <td class="gain-positive">+112.1%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">GWEI-USD</td>
+          <td style="font-family: var(--mono)">$0.104973</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+76.6%</td>
+          <td class="gain-positive">TP1 + Trail</td>
+          <td class="gain-positive">+76.6%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">SYND-USD</td>
+          <td style="font-family: var(--mono)">$0.0204</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+87.7%</td>
+          <td class="gain-positive">TP1 + Trail</td>
+          <td class="gain-positive">+72.5%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">IMU-USD</td>
+          <td style="font-family: var(--mono)">$0.00152</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+73.7%</td>
+          <td class="gain-positive">TP1 + Trail</td>
+          <td class="gain-positive">+63.2%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">JTO-USD</td>
+          <td style="font-family: var(--mono)">$0.5868</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+49.9%</td>
+          <td class="gain-positive">Time Stop</td>
+          <td class="gain-positive">+41.9%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">AGLD-USD</td>
+          <td style="font-family: var(--mono)">$0.1534</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+48.7%</td>
+          <td class="gain-positive">TP1 + Trail</td>
+          <td class="gain-positive">+48.7%</td>
+          <td><span class="badge badge-green">Winner</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">BILL-USD</td>
+          <td style="font-family: var(--mono)">$0.1435</td>
+          <td><span class="badge badge-amber">Accel L2</span></td>
+          <td class="gain-positive">+62.9%</td>
+          <td class="gain-negative">No exit system</td>
+          <td class="gain-negative">$0</td>
+          <td><span class="badge badge-red">Lesson</span></td>
+        </tr>
+        <tr>
+          <td style="font-family: var(--mono); color: var(--text)">FIS-USD</td>
+          <td style="font-family: var(--mono)">$0.0183</td>
+          <td><span class="badge badge-green">Standard L2</span></td>
+          <td class="gain-positive">+3.8%</td>
+          <td class="gain-negative">RSI 83 — overbought</td>
+          <td class="gain-negative">-8%</td>
+          <td><span class="badge badge-red">SL Hit</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: -8px;">
+      * BILL and FIS represent pre-TP/SL and post-RSI implementations respectively — 
+      both directly led to system improvements. All winner exits are real entry + exit prices 
+      auto-logged to Hall of Fame.
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- REFLECTIONS -->
+<section id="reflections">
+  <div class="container">
+    <div class="section-label">05 — Reflections</div>
+    <h2>What I learned building<br>a production trading system</h2>
+
+    <div class="reflection-grid">
+      <div class="reflection-card">
+        <div class="reflection-label learned">What worked</div>
+        <p>
+          The batch state cache was the single biggest architectural win. 
+          Replacing 231 individual per-coin SELECT queries with one batch read 
+          per cycle eliminated ~65MB/day of egress from state reads alone. 
+          Combined with conditional momentum history and explicit column selection 
+          on summary queries, total egress dropped from 16GB to 2.5GB/month — 
+          well within Supabase's free tier.
+        </p>
+      </div>
+      <div class="reflection-card">
+        <div class="reflection-label learned">What worked</div>
+        <p>
+          Mandatory code review cycles caught three critical silent failures: 
+          TA indicators written in an unreachable except block (weeks of null RSI), 
+          194 coins with stale l2_fired_at timestamps permanently blocking re-entry 
+          alerts, and peak_price updating indefinitely on closed positions — 
+          creating phantom +500% gains that corrupted Hall of Fame data.
+        </p>
+      </div>
+      <div class="reflection-card">
+        <div class="reflection-label would">What I'd do differently</div>
+        <p>
+          The egress architecture should have been designed from day one around 
+          a batch state cache. Retrofitting it after the first month cost significant 
+          engineering time and allowed the original account to exceed Supabase's 
+          free tier limits before the fix was deployed. Schema decisions are 
+          harder to change than logic decisions.
+        </p>
+      </div>
+      <div class="reflection-card">
+        <div class="reflection-label would">What I'd do differently</div>
+        <p>
+          I'd build the TP/SL system in parallel with signal detection, not after it. 
+          BILL-USD peaked at +63% and gave it all back. Every day the system ran 
+          without automated exits was a day real gains were left on the table. 
+          Exit logic is not a feature — it's core infrastructure. The Hall of Fame 
+          auto-insert should have been wired from day one.
+        </p>
+      </div>
+      <div class="reflection-card">
+        <div class="reflection-label learned">Unexpected insight</div>
+        <p>
+          Silent failures are the hardest bugs to find. Indicators were calculated 
+          correctly every cycle — but written in an except block that never ran 
+          because the try always succeeded. Three weeks of null RSI values before 
+          the root cause was found. In production systems, always verify writes 
+          explicitly — log confirmation, not just the calculation.
+        </p>
+      </div>
+      <div class="reflection-card">
+        <div class="reflection-label learned">Unexpected insight</div>
+        <p>
+          The rogue wick problem in trailing stops is a first-principles engineering 
+          issue, not a trading one. Using candle highs for trailing stop calculation 
+          causes false exits on thin-order-book coins that spike and immediately revert. 
+          Trailing on 1-minute closes — now widened to a 15-candle lookback — 
+          catches more intra-cycle peaks without being fooled by temporary 
+          liquidity voids.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="container">
+    <div class="section-label">06 — Roadmap</div>
+    <h2>What's been built.<br>What's coming next.</h2>
+
+    <div class="roadmap-grid" style="grid-template-columns: repeat(6, 1fr);">
+      <div class="roadmap-item done">
+        <div class="roadmap-phase">Phase 1</div>
+        <div class="roadmap-name">Core Scanner + L1/L2</div>
+        <div class="roadmap-status">Complete</div>
+      </div>
+      <div class="roadmap-item done">
+        <div class="roadmap-phase">Phase 2</div>
+        <div class="roadmap-name">Dynamic L2 + HH/HL + Grinders</div>
+        <div class="roadmap-status">Complete</div>
+      </div>
+      <div class="roadmap-item done">
+        <div class="roadmap-phase">Phase 3</div>
+        <div class="roadmap-name">RSI · MACD · EMA · F&G · RS/BTC</div>
+        <div class="roadmap-status">Complete</div>
+      </div>
+      <div class="roadmap-item done">
+        <div class="roadmap-phase">Phase 4</div>
+        <div class="roadmap-name">TP/SL Position Management</div>
+        <div class="roadmap-status">Complete</div>
+      </div>
+      <div class="roadmap-item done">
+        <div class="roadmap-phase">Phase 5</div>
+        <div class="roadmap-name">Unified Momentum Score 0–100</div>
+        <div class="roadmap-status">Complete</div>
+      </div>
+      <div class="roadmap-item active">
+        <div class="roadmap-phase">Phase 6</div>
+        <div class="roadmap-name">L3 Alpha Score Entry Filter</div>
+        <div class="roadmap-status">In Progress</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-title">Phase 6 — L3 Signal Intelligence</div>
+      <div class="card-body">
+        All six signal types are live with a 0–100 Momentum Score on every alert. 
+        The next step adds intelligent entry filtering: RSI gate (skip entries above 65), 
+        high-momentum time stop exemption (coins up 15%+ 24hr get 6hr window instead of 2hr), 
+        and a re-entry system validated by 194 previously-blocked coins now receiving 
+        fresh alerts. Target: TP1 success rate from 8.1% to 24%+ (break-even threshold).
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<footer>
+  <div class="container">
+    <div class="footer-text">Momentum — Built in production, validated on live markets · 35 days · 26 documented wins</div>
+    <div class="footer-links">
+      <a href="https://github.com/nicopxm/momentum-tracker">GitHub</a>
+      <a href="https://momentum-tracker-mirjjfgreydqj26dgyswz7.streamlit.app/">Live Dashboard</a>
+      <a href="https://t.me/MomentumAlphaSignals">Telegram Channel</a>
+      <a href="#">Back to Portfolio</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Slide-up on scroll
+  const slideObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        slideObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08 });
+
+  document.querySelectorAll(
+    '.card, .stack-card, .impact-card, .roadmap-item, .reflection-card, .signal-step, .egress-visual, .alert-preview, .code-block, .results-table'
+  ).forEach((el, i) => {
+    el.classList.add('slide-up');
+    el.style.transitionDelay = `${(i % 3) * 0.07}s`;
+    slideObserver.observe(el);
+  });
+
+  // Animate egress bars on scroll
+  const egressObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.querySelectorAll('.egress-bar').forEach(bar => {
+          const w = bar.style.width;
+          bar.style.width = '0';
+          setTimeout(() => { bar.style.width = w; }, 120);
+        });
+        egressObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  const egressViz = document.querySelector('.egress-visual');
+  if (egressViz) egressObserver.observe(egressViz);
+</script>
+</body>
+</html>

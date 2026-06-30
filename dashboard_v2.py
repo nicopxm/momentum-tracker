@@ -596,7 +596,17 @@ if st.session_state.page == "Dashboard":
 
     open_count, open_coins = fetch_open_positions()
     open_color     = c_green if open_count >= 3 else c_amber if open_count >= 1 else c_red
-    open_coins_str = " · ".join(open_coins) if open_coins else "none"
+    if not open_coins:
+        open_coins_str = "none"
+        open_coins_extra = ""
+    else:
+        max_display = 6
+        if len(open_coins) <= max_display:
+            open_coins_str = " · ".join(open_coins)
+            open_coins_extra = ""
+        else:
+            open_coins_str = " · ".join(open_coins[:max_display])
+            open_coins_extra = f"+ {len(open_coins) - max_display} more"
 
     last_scan_ago, last_scan_time = fetch_last_scan()
     last_scan_color = c_green if "min" in last_scan_ago and int(last_scan_ago.split()[0]) <= 7 else c_amber if last_scan_ago != "—" else c_red
@@ -730,7 +740,7 @@ if st.session_state.page == "Dashboard":
     border: none;
     box-shadow: 0 2px 12px rgba(0,0,0,0.12);
     border-radius: 10px;
-    padding: 12px 18px;
+    padding: 10px 18px 8px;
     text-align: center;
     min-width: 0;
 }}
@@ -757,7 +767,7 @@ if st.session_state.page == "Dashboard":
     Coinbase Signal Tracker &nbsp;—&nbsp;
     <span class="live-dot"></span><span class="live-text">LIVE</span>
   </div>
-  <div style="display:flex; justify-content:space-between; align-items:stretch; margin-bottom:12px;">
+  <div style="display:flex; justify-content:space-between; align-items:stretch; margin-bottom:4px;">
     <div style="display:flex; gap:10px;">
       <div class="metric-card-sm" style="width:160px;">
         <div class="metric-card-lbl" style="font-size:10px;">L2s Today</div>
@@ -767,7 +777,8 @@ if st.session_state.page == "Dashboard":
       <div class="metric-card-sm" style="width:160px;">
         <div class="metric-card-lbl" style="font-size:10px;">Open Positions</div>
         <div class="metric-card-val" style="font-size:22px; margin-top:2px; color:{open_color};">{open_count}</div>
-        <div class="metric-card-sub" style="color:{open_color}; font-size:10px;">{open_coins_str}</div>
+        <div class="metric-card-sub" style="color:{open_color}; font-size:10px; white-space:normal; word-break:break-word; line-height:1.4; max-height:2.8em; overflow:hidden;">{open_coins_str}</div>
+        {f'<div style="font-size:9px;color:{c_sub};margin-top:2px">{open_coins_extra}</div>' if open_coins_extra else ''}
       </div>
       <div class="metric-card-sm" style="width:160px;">
         <div class="metric-card-lbl" style="font-size:10px;">TP1 Success Rate</div>
